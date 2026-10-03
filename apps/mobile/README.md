@@ -119,6 +119,20 @@ node ../../scripts/mobile-native-static-check.ts
 
 The native lint task runs SwiftLint for Swift plus ktlint and detekt for Kotlin. Missing native tools are reported as warnings and skipped locally. CI installs the default toolset from `apps/mobile/Brewfile` before running the native checks.
 
+## Voice transcription service
+
+Builds use Apple's on-device transcription by default. To send recordings to an
+OpenAI-compatible `/audio/transcriptions` endpoint instead, set all three variables in the
+repository root `.env` before building:
+
+```bash
+EXPO_PUBLIC_TRANSCRIPTION_URL=https://api.openai.com/v1/audio/transcriptions
+EXPO_PUBLIC_TRANSCRIPTION_API_KEY=sk-...
+EXPO_PUBLIC_TRANSCRIPTION_MODEL=gpt-4o-transcribe
+```
+
+The key is embedded in the app bundle, so only use this for personal builds.
+
 ## EAS Builds
 
 Preview and production variants use Expo fingerprinting so OTA updates only reach binaries with matching native dependencies, config plugins, and patches. CI uses the `preview:dev` profile to reuse a compatible native build when possible.

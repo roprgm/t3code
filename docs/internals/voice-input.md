@@ -2,7 +2,9 @@
 
 Transcription edits a composer draft. It does not submit an agent turn. Audio is
 temporary client input, and only normal message submission sends the resulting
-text. The current implementation transcribes locally on supported iOS devices;
+text. Shipped builds transcribe locally on supported iOS devices. Self-built apps
+can instead send recordings to an OpenAI-compatible service configured at build
+time (see the [mobile README](../../apps/mobile/README.md#voice-transcription-service));
 environment-backed transcription is not implemented.
 
 The [shared controller](../../packages/client-runtime/src/voice-input/controller.ts)
