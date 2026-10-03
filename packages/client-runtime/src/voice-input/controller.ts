@@ -245,7 +245,7 @@ export class VoiceInputController {
       if (!this.isCurrent(operationToken)) return;
       await this.dependencies.recorder.prepareToRecordAsync();
       if (!this.isCurrent(operationToken)) return;
-      this.recordingUri = this.dependencies.recorder.uri;
+      this.recordingUri = this.recorderUri();
       this.rememberRecordingUri(this.recordingUri);
 
       const capturedDraft = this.dependencies.readDraft();
@@ -357,7 +357,7 @@ export class VoiceInputController {
     try {
       if (!alreadyStopped) await this.dependencies.recorder.stop();
       await this.releaseAudioSession();
-      this.recordingUri = completedUri ?? this.dependencies.recorder.uri ?? this.recordingUri;
+      this.recordingUri = completedUri ?? this.recorderUri() ?? this.recordingUri;
       this.rememberRecordingUri(this.recordingUri);
       if (!this.isCurrent(operationToken)) return;
       if (
@@ -426,9 +426,9 @@ export class VoiceInputController {
     );
     try {
       await this.dependencies.recorder.stop();
-      this.rememberRecordingUri(this.dependencies.recorder.uri);
+      this.rememberRecordingUri(this.recorderUri());
     } catch {
-      this.rememberRecordingUri(this.dependencies.recorder.uri);
+      this.rememberRecordingUri(this.recorderUri());
     } finally {
       await this.releaseResources();
     }
@@ -436,7 +436,7 @@ export class VoiceInputController {
 
   private async releaseResources(): Promise<void> {
     this.rememberRecordingUri(this.recordingUri);
-    this.rememberRecordingUri(this.dependencies.recorder.uri);
+    this.rememberRecordingUri(this.recorderUri());
     this.recordingUri = null;
     for (const uri of this.ownedRecordingUris) {
       try {
@@ -452,6 +452,15 @@ export class VoiceInputController {
     this.capturedDraft = null;
     this.transcription = null;
     this.transcriptionAbortController = null;
+  }
+
+  /** Reading a recorder released by its unmounted screen throws; cleanup must still finish. */
+  private recorderUri(): string | null {
+    try {
+      return this.dependencies.recorder.uri;
+    } catch {
+      return null;
+    }
   }
 
   private rememberRecordingUri(uri: string | null): void {

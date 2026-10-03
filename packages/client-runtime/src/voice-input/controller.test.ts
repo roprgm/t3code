@@ -511,6 +511,26 @@ describe("VoiceInputController", () => {
     expect(harness.deleted).toEqual(["file:///voice.m4a", "file:///reset-empty.m4a"]);
   });
 
+  it("releases the session when its screen releases the recorder mid-discard", async () => {
+    const leaving = createHarness();
+    await leaving.controller.start();
+    // Unmounting the screen releases the native recorder while the discard awaits it.
+    leaving.recorder.stop.mockImplementation(async () => {
+      Object.defineProperty(leaving.recorder, "uri", {
+        get: () => {
+          throw new Error("Unable to find the native shared object");
+        },
+      });
+      throw new Error("Unable to find the native shared object");
+    });
+    leaving.controller.dispose();
+    await vi.waitFor(() => expect(leaving.deleted).toEqual(["file:///voice.m4a"]));
+
+    const returning = createHarness();
+    await returning.controller.start();
+    expect(returning.controller.currentState.phase).toBe("recording");
+  });
+
   it("cancels preparation when the app reaches the background", async () => {
     const preparation = deferred<PreparedVoiceTranscription>();
     const preparationEntered = deferred<AbortSignal>();
