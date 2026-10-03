@@ -14,7 +14,8 @@ import { AppState } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
-import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
+import { getVoiceTranscriber } from "./voiceTranscriber";
+import { useCloudTranscriptionSettings } from "./voiceTranscriptionSettings";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
   VoiceInputController,
@@ -87,6 +88,8 @@ export function useVoiceInputController(input: {
     previousDraftRef.current = { ownerKey: input.ownerKey, text: input.draftMessage };
     revisionRef.current += 1;
   }
+  // Re-render when a cloud service is added or removed, which changes availability.
+  useCloudTranscriptionSettings();
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
 
@@ -103,7 +106,7 @@ export function useVoiceInputController(input: {
   if (!controllerRef.current) {
     controllerRef.current = new VoiceInputController({
       recorder,
-      getTranscriber: getLocalVoiceTranscriber,
+      getTranscriber: getVoiceTranscriber,
       requestPermission: async () => {
         const permission = await requestRecordingPermissionsAsync();
         return { granted: permission.granted, canAskAgain: permission.canAskAgain };
@@ -221,7 +224,7 @@ export function useVoiceInputController(input: {
   return {
     // Store screenshots show the dictation button even on simulators, whose
     // on-device transcription is unavailable.
-    isAvailable: getLocalVoiceTranscriber() !== null || getNativeShowcaseScene() !== null,
+    isAvailable: getVoiceTranscriber() !== null || getNativeShowcaseScene() !== null,
     state,
     audioLevels,
     elapsedSeconds,

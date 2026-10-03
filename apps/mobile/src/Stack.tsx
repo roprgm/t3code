@@ -95,6 +95,7 @@ import {
 } from "./features/settings/ScheduledTaskPickerScreens";
 import { ScheduledTaskEditorProvider } from "./features/settings/scheduled-task-editor";
 import { SettingsKeyboardRouteScreen } from "./features/settings/SettingsKeyboardRouteScreen";
+import { SettingsVoiceInputRouteScreen } from "./features/settings/SettingsVoiceInputRouteScreen";
 import { SettingsLegalRouteScreen } from "./features/settings/SettingsLegalRouteScreen";
 import {
   SettingsOpenSourceLicenseRouteScreen,
@@ -299,6 +300,13 @@ const SettingsContentStack = createNativeStackNavigator({
       linking: "keyboard",
       options: {
         title: "Keyboard",
+      },
+    }),
+    SettingsVoiceInput: createNativeStackScreen({
+      screen: SettingsVoiceInputRouteScreen,
+      linking: "voice-input",
+      options: {
+        title: "Voice input",
       },
     }),
     SettingsFollowUp: createNativeStackScreen({

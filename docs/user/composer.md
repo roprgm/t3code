@@ -137,18 +137,23 @@ and use **Attach again** or remove the missing file before sending.
 
 ## Voice input on iPhone
 
-On supported iPhones with iOS 26 or later, use the composer's microphone to record,
-then confirm to transcribe. Text is inserted where your selection was when
-recording started, ready for you to review and edit before sending.
+On iPhone, use the composer's microphone to record, then confirm to transcribe. Text
+is inserted where your selection was when recording started, ready for you to review
+and edit before sending.
 
-The first use may download Apple's speech model and needs a network connection.
-Later transcription works offline for that language. Recordings can be up to five
-minutes long. Canceling, leaving the screen, or an audio interruption discards the
-recording and preserves your existing draft. While recording, the screen stays
-awake; it can sleep normally once recording stops.
+On-device transcription needs iOS 26 or later. Its first use may download Apple's
+speech model and needs a network connection; later transcription works offline for
+that language. Recordings can be up to five minutes long. Canceling, leaving the
+screen, or an audio interruption discards the recording and preserves your existing
+draft. While recording, the screen stays awake; it can sleep normally once recording
+stops.
 
-Transcription runs on your device. T3 Code deletes the temporary audio after
-transcription or cancellation; only the message text is sent when you submit.
+By default, transcription runs on your device. To use a cloud service instead, open
+**Settings → Voice input**, choose **Cloud service**, and enter an OpenAI-compatible
+transcription endpoint, model, and API key; this also works on iPhones without on-device
+transcription. Recordings are then uploaded to that service, and the key stays in the
+device's secure storage. T3 Code deletes the temporary audio after transcription or
+cancellation; only the message text is sent when you submit.
 
 ## Queued messages
 
