@@ -15,6 +15,12 @@ import { useSharedValue } from "react-native-reanimated";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { getVoiceTranscriber } from "./voiceTranscriber";
+import {
+  deliverPendingVoiceRecordings,
+  holdVoiceRecordingDelivery,
+  usePendingVoiceRecordings,
+  voiceRecordingOutbox,
+} from "./voiceRecordingOutboxStore";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
   VoiceInputController,
@@ -23,6 +29,7 @@ import {
   voiceInputFreezesEditor,
   type VoiceDraftSnapshot,
   type VoiceInputState,
+  type VoiceTranscriber,
 } from "@t3tools/client-runtime/voice-input";
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
@@ -62,8 +69,50 @@ async function configureVoiceRecordingAudio(): Promise<void> {
   }
 }
 
+/**
+ * Keeps each recording in the outbox until the composer inserts its transcript.
+ * Failed, cancelled-by-navigation, and stale transcriptions reach the draft later.
+ */
+function keepRecordingsUntilInserted(
+  transcriber: VoiceTranscriber,
+  draftKey: string,
+  pendingIdRef: { current: string | null },
+  onKept: () => void,
+): VoiceTranscriber {
+  return {
+    prepare: async (options) => {
+      const prepared = await transcriber.prepare(options);
+      return {
+        locale: prepared.locale,
+        transcribe: async (uri, transcribeOptions) => {
+          const id = await voiceRecordingOutbox.keep(uri, draftKey);
+          pendingIdRef.current = id;
+          try {
+            const transcript = await prepared.transcribe(uri, transcribeOptions);
+            if (id) await voiceRecordingOutbox.setTranscript(id, transcript);
+            return transcript;
+          } finally {
+            // The controller commits the transcript in the microtasks that follow.
+            setTimeout(() => {
+              if (!id) return;
+              voiceRecordingOutbox.release(id);
+              if (pendingIdRef.current === id) pendingIdRef.current = null;
+              if (voiceRecordingOutbox.snapshot().some((recording) => recording.id === id)) {
+                onKept();
+              }
+              deliverPendingVoiceRecordings();
+            }, 0);
+          }
+        },
+      };
+    },
+  };
+}
+
 export function useVoiceInputController(input: {
   readonly ownerKey: string | null;
+  /** Draft that receives transcripts recovered after this composer is gone. */
+  readonly draftKey?: string | null;
   readonly draftMessage: string;
   readonly selection: ComposerEditorSelection;
   readonly disabled?: boolean;
@@ -89,6 +138,8 @@ export function useVoiceInputController(input: {
   }
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
+  const pendingIdRef = useRef<string | null>(null);
+  const pendingRecordings = usePendingVoiceRecordings(input.draftKey ?? null);
 
   const handleRecorderStatus = useCallback((status: RecordingStatus) => {
     controllerRef.current?.handleRecorderStatus({
@@ -103,7 +154,18 @@ export function useVoiceInputController(input: {
   if (!controllerRef.current) {
     controllerRef.current = new VoiceInputController({
       recorder,
-      getTranscriber: getVoiceTranscriber,
+      getTranscriber: () => {
+        const transcriber = getVoiceTranscriber();
+        const draftKey = latestInputRef.current.draftKey;
+        // A kept recording shows as pending, so its transcription error is redundant.
+        const clearError = () => {
+          const current = controllerRef.current;
+          if (current?.currentState.phase === "error") current.cancel();
+        };
+        return transcriber && draftKey
+          ? keepRecordingsUntilInserted(transcriber, draftKey, pendingIdRef, clearError)
+          : transcriber;
+      },
       requestPermission: async () => {
         const permission = await requestRecordingPermissionsAsync();
         return { granted: permission.granted, canAskAgain: permission.canAskAgain };
@@ -125,6 +187,9 @@ export function useVoiceInputController(input: {
         const current = latestInputRef.current;
         current.onChangeSelection(selection);
         current.onChangeDraftMessage(text);
+        const pendingId = pendingIdRef.current;
+        pendingIdRef.current = null;
+        if (pendingId) void voiceRecordingOutbox.complete(pendingId);
       },
       onStateChange: setState,
     });
@@ -151,13 +216,25 @@ export function useVoiceInputController(input: {
     const subscription = AppState.addEventListener("change", (nextState) => {
       // iOS reports `inactive` while its permission dialog is open. Only the
       // real background state cancels preparation; recorder status handles
-      // calls and route interruptions during capture.
-      if (nextState === "background") controller.appMovedToBackground();
+      // calls and route interruptions during capture. A recording in progress
+      // finishes instead of being discarded; the outbox keeps it if the
+      // transcription cannot complete in the background.
+      if (nextState !== "background") return;
+      if (controller.currentState.phase === "recording" && latestInputRef.current.draftKey) {
+        void controller.stop();
+      } else {
+        controller.appMovedToBackground();
+      }
     });
     return () => subscription.remove();
   }, [controller]);
 
   useEffect(() => () => controller.dispose(), [controller]);
+
+  const isVoiceSessionActive = voiceInputBlocksSubmission(state);
+  useEffect(() => {
+    if (isVoiceSessionActive) return holdVoiceRecordingDelivery();
+  }, [isVoiceSessionActive]);
 
   useEffect(() => {
     if (state.phase !== "recording") return;
@@ -216,7 +293,19 @@ export function useVoiceInputController(input: {
     if (!latestInputRef.current.disabled) void controller.start();
   }, [controller]);
   const stop = useCallback(() => controller.stop(), [controller]);
-  const cancel = useCallback(() => controller.cancel(), [controller]);
+  const cancel = useCallback(() => {
+    // Cancelling a transcription is a choice to drop it, unlike leaving the thread.
+    const pendingId = pendingIdRef.current;
+    if (controller.currentState.phase === "transcribing" && pendingId) {
+      pendingIdRef.current = null;
+      void voiceRecordingOutbox.discard(pendingId);
+    }
+    controller.cancel();
+  }, [controller]);
+  const retryPending = useCallback(() => deliverPendingVoiceRecordings(), []);
+  const discardPending = useCallback(() => {
+    for (const recording of pendingRecordings) void voiceRecordingOutbox.discard(recording.id);
+  }, [pendingRecordings]);
 
   return {
     // Store screenshots show the dictation button even on simulators, whose
@@ -231,5 +320,8 @@ export function useVoiceInputController(input: {
     start,
     stop,
     cancel,
+    pendingCount: pendingRecordings.length,
+    retryPending,
+    discardPending,
   };
 }

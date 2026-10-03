@@ -505,6 +505,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   });
   const voiceInput = useVoiceInputController({
     ownerKey: composerOwnerKey,
+    draftKey: composerOwnerKey,
     draftMessage: props.draftMessage,
     selection: composerMenu.selection,
     onChangeDraftMessage: props.onChangeDraftMessage,
@@ -513,6 +514,7 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
+    voiceInput.pendingCount,
   );
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   // An open draft stays visible; only a collapsed composer becomes a voice strip.
@@ -1102,6 +1104,8 @@ export const ThreadComposer = memo(function ThreadComposer(props: ThreadComposer
                     phase={voiceInput.state.phase}
                     presentation={voicePresentation}
                     onDismissError={voiceInput.cancel}
+                    onRetryPending={voiceInput.retryPending}
+                    onDiscardPending={voiceInput.discardPending}
                   />
                 ) : (
                   <View className="min-w-0 flex-1 flex-row items-center justify-between">

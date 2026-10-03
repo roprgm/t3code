@@ -4,7 +4,7 @@ export type VoiceComposerPresentation = {
   readonly leadingAction: "cancel" | null;
   readonly trailingAction: "mic" | "confirm";
   readonly showsSend: boolean;
-  readonly statusKind: "active" | "error" | null;
+  readonly statusKind: "active" | "error" | "pending" | null;
   readonly statusLabel: string | null;
   readonly confirmationEnabled: boolean;
 };
@@ -12,9 +12,23 @@ export type VoiceComposerPresentation = {
 export function resolveVoiceComposerPresentation(
   state: VoiceInputState,
   elapsedSeconds: number,
+  pendingCount = 0,
 ): VoiceComposerPresentation {
   switch (state.phase) {
     case "idle":
+      if (pendingCount > 0) {
+        return {
+          leadingAction: null,
+          trailingAction: "mic",
+          showsSend: true,
+          statusKind: "pending",
+          statusLabel:
+            pendingCount === 1
+              ? "Voice note waiting to transcribe"
+              : `${pendingCount} voice notes waiting to transcribe`,
+          confirmationEnabled: false,
+        };
+      }
       return {
         leadingAction: null,
         trailingAction: "mic",

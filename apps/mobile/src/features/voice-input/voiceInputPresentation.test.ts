@@ -66,4 +66,20 @@ describe("resolveVoiceComposerPresentation", () => {
     );
     expect(voiceInputFreezesEditor({ phase: "idle", error: null, errorAction: null })).toBe(false);
   });
+  it("shows recordings waiting to transcribe while idle", () => {
+    const idle = { phase: "idle", error: null, errorAction: null } as const;
+    expect(resolveVoiceComposerPresentation(idle, 0, 2)).toMatchObject({
+      statusKind: "pending",
+      statusLabel: "2 voice notes waiting to transcribe",
+      trailingAction: "mic",
+      showsSend: true,
+    });
+    expect(
+      resolveVoiceComposerPresentation(
+        { phase: "recording", error: null, errorAction: null },
+        3,
+        1,
+      ),
+    ).toMatchObject({ statusKind: "active", statusLabel: "Recording 0:03" });
+  });
 });

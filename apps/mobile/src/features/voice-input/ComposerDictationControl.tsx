@@ -2,6 +2,7 @@ import type { VoiceInputPhase, VoiceInputState } from "@t3tools/client-runtime/v
 import { memo, useCallback, useLayoutEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -281,6 +282,8 @@ export function ComposerDictationStatus(props: {
   readonly phase: VoiceInputPhase;
   readonly presentation: VoiceComposerPresentation;
   readonly onDismissError: () => void;
+  readonly onRetryPending?: () => void;
+  readonly onDiscardPending?: () => void;
 }) {
   const recordingVisibility = useSharedValue(props.phase === "recording" ? 1 : 0);
   useLayoutEffect(() => {
@@ -294,6 +297,59 @@ export function ComposerDictationStatus(props: {
   }));
 
   if (!props.presentation.statusLabel) return null;
+  if (props.presentation.statusKind === "pending") {
+    const { onDiscardPending } = props;
+    return (
+      <View className="relative h-11 min-w-0 flex-1 justify-center">
+        <View className="min-w-0 flex-row items-center gap-1.5 px-2">
+          <Text className="min-w-0 flex-1 text-sm text-foreground-muted" numberOfLines={2}>
+            {props.presentation.statusLabel}
+          </Text>
+          {props.onRetryPending ? (
+            <Pressable
+              accessibilityLabel="Retry voice transcription"
+              accessibilityRole="button"
+              className="size-7 items-center justify-center active:opacity-70"
+              hitSlop={8}
+              onPress={props.onRetryPending}
+            >
+              <SymbolView
+                name="arrow.clockwise"
+                size={13}
+                tintColorClassName="accent-icon-muted"
+                type="monochrome"
+              />
+            </Pressable>
+          ) : null}
+          {onDiscardPending ? (
+            <Pressable
+              accessibilityLabel="Discard waiting voice notes"
+              accessibilityRole="button"
+              className="size-7 items-center justify-center active:opacity-70"
+              hitSlop={8}
+              onPress={() =>
+                Alert.alert(
+                  "Discard voice notes?",
+                  "They have not been transcribed yet, so this deletes them for good.",
+                  [
+                    { text: "Keep", style: "cancel" },
+                    { text: "Discard", style: "destructive", onPress: onDiscardPending },
+                  ],
+                )
+              }
+            >
+              <SymbolView
+                name="trash"
+                size={13}
+                tintColorClassName="accent-icon-muted"
+                type="monochrome"
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
   const isError = props.presentation.statusKind === "error";
   const elapsedLabel = `${Math.floor(props.elapsedSeconds / 60)}:${String(props.elapsedSeconds % 60).padStart(2, "0")}`;
   return (
