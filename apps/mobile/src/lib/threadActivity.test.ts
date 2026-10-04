@@ -975,6 +975,36 @@ describe("buildThreadFeed", () => {
     ).toBe(true);
   });
 
+  it("keeps a running subagent visible after its run settles, then folds it once it finishes", () => {
+    const subagent = (status: "running" | "completed") =>
+      ({
+        ...base("item-subagent", "2026-06-20T00:00:01.000Z", 1),
+        status,
+        type: "subagent",
+        subagentId: NodeId.make("child-agent"),
+        origin: "app_owned",
+        driver: ProviderDriverKind.make("claudeAgent"),
+        providerInstanceId: ProviderInstanceId.make("claudeAgent"),
+        childThreadId: sourceThreadId,
+        prompt: "Wait five minutes",
+        result: null,
+      }) satisfies OrchestrationV2TurnItem;
+    const present = (status: "running" | "completed") =>
+      deriveThreadFeedPresentation(
+        buildThreadFeed([
+          projected(userMessage(), 0),
+          projected(subagent(status), 1),
+          projected(command("2026-06-20T00:00:02.000Z"), 2),
+          projected(assistantMessage("2026-06-20T00:00:03.000Z"), 3),
+        ]),
+        null,
+        new Set(),
+      ).map((entry) => entry.type);
+
+    expect(present("running")).toEqual(["message", "activity-group", "run-fold", "message"]);
+    expect(present("completed")).toEqual(["message", "run-fold", "message"]);
+  });
+
   it("folds settled V2 run work while keeping the terminal assistant message visible", () => {
     const feed = buildThreadFeed([
       projected(userMessage(), 0),

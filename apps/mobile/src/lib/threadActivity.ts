@@ -48,7 +48,7 @@ import type {
   RunAttemptId,
   ScheduledTaskId,
 } from "@t3tools/contracts";
-import { RunId, ThreadId } from "@t3tools/contracts";
+import { isOrchestrationV2WorkActive, RunId, ThreadId } from "@t3tools/contracts";
 import {
   classifyToolActivity,
   collectToolFilePaths,
@@ -1107,7 +1107,10 @@ function deriveThreadFeedRunFolds(
                 (activity) =>
                   activity.prominent ||
                   activity.projectedItem.item.type === "notification" ||
-                  activity.projectedItem.item.type === "handoff",
+                  activity.projectedItem.item.type === "handoff" ||
+                  // A subagent outlives the run that started it; its card stays reachable until it settles.
+                  (activity.projectedItem.item.type === "subagent" &&
+                    isOrchestrationV2WorkActive(activity.projectedItem.item.status)),
               )
             ),
         )
