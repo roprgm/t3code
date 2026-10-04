@@ -16,6 +16,13 @@ import { useSharedValue } from "react-native-reanimated";
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { getVoiceTranscriber } from "./voiceTranscriber";
 import { useCloudTranscriptionSettings } from "./voiceTranscriptionSettings";
+import {
+  deliverPendingRecordings,
+  discardPendingRecordings,
+  keepRecording,
+  pauseRecordingDelivery,
+  usePendingRecordingCount,
+} from "./voiceRecordingOutbox";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
   VoiceInputController,
@@ -65,6 +72,8 @@ async function configureVoiceRecordingAudio(): Promise<void> {
 
 export function useVoiceInputController(input: {
   readonly ownerKey: string | null;
+  /** Draft that receives transcripts of recordings that did not reach this composer. */
+  readonly draftKey?: string | null;
   readonly draftMessage: string;
   readonly selection: ComposerEditorSelection;
   readonly disabled?: boolean;
@@ -91,6 +100,9 @@ export function useVoiceInputController(input: {
   // Re-render when a cloud service is added or removed, which changes availability.
   useCloudTranscriptionSettings();
   const latestInputRef = useRef(input);
+  // A recording is dropped only once its text is in the draft or the user cancelled it.
+  const recordingSettledRef = useRef(false);
+  const pendingRecordingCount = usePendingRecordingCount(input.draftKey ?? null);
   latestInputRef.current = input;
 
   const handleRecorderStatus = useCallback((status: RecordingStatus) => {
@@ -113,7 +125,11 @@ export function useVoiceInputController(input: {
       },
       configureRecording: configureVoiceRecordingAudio,
       releaseRecording: releaseVoiceRecordingAudio,
-      deleteRecording: (uri) => new File(uri).delete(),
+      deleteRecording: (uri) => {
+        const draftKey = latestInputRef.current.draftKey;
+        if (draftKey && !recordingSettledRef.current) keepRecording(uri, draftKey);
+        else new File(uri).delete();
+      },
       readDraft: (): VoiceDraftSnapshot | null => {
         const current = latestInputRef.current;
         if (!current.ownerKey) return null;
@@ -128,6 +144,7 @@ export function useVoiceInputController(input: {
         const current = latestInputRef.current;
         current.onChangeSelection(selection);
         current.onChangeDraftMessage(text);
+        recordingSettledRef.current = true;
       },
       onStateChange: setState,
     });
@@ -215,11 +232,21 @@ export function useVoiceInputController(input: {
     return () => clearInterval(intervalId);
   }, [audioLevels, controller, recorder, state.phase]);
 
+  const isVoiceSessionActive = voiceInputBlocksSubmission(state);
+  useEffect(
+    () => (isVoiceSessionActive ? pauseRecordingDelivery() : undefined),
+    [isVoiceSessionActive],
+  );
+
   const start = useCallback(() => {
+    recordingSettledRef.current = false;
     if (!latestInputRef.current.disabled) void controller.start();
-  }, [controller]);
+  }, [controller, recordingSettledRef]);
   const stop = useCallback(() => controller.stop(), [controller]);
-  const cancel = useCallback(() => controller.cancel(), [controller]);
+  const cancel = useCallback(() => {
+    if (voiceInputBlocksSubmission(controller.currentState)) recordingSettledRef.current = true;
+    controller.cancel();
+  }, [controller, recordingSettledRef]);
 
   return {
     // Store screenshots show the dictation button even on simulators, whose
@@ -234,5 +261,10 @@ export function useVoiceInputController(input: {
     start,
     stop,
     cancel,
+    pendingRecordingCount,
+    retryPendingRecordings: deliverPendingRecordings,
+    discardPendingRecordings: () => {
+      if (input.draftKey) discardPendingRecordings(input.draftKey);
+    },
   };
 }

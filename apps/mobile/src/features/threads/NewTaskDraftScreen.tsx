@@ -473,6 +473,7 @@ export function NewTaskDraftScreen(props: {
   });
   const voiceInput = useVoiceInputController({
     ownerKey: flow.draftKey,
+    draftKey: flow.draftKey,
     draftMessage: flow.prompt,
     selection: composerMenu.selection,
     disabled: isIncomingShareTransferPending || isImportingShare || flow.submitting,
@@ -482,6 +483,7 @@ export function NewTaskDraftScreen(props: {
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
+    voiceInput.pendingRecordingCount,
   );
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const preventRemove =
@@ -1703,6 +1705,8 @@ export function NewTaskDraftScreen(props: {
                   phase={voiceInput.state.phase}
                   presentation={voicePresentation}
                   onDismissError={voiceInput.cancel}
+                  onRetryPending={voiceInput.retryPendingRecordings}
+                  onDiscardPending={voiceInput.discardPendingRecordings}
                 />
               ) : (
                 <>

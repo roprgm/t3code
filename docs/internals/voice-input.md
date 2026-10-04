@@ -11,6 +11,11 @@ binds the transcriber and resolved locale for the whole recording. Draft ownersh
 text, and revision are captured before recording and checked before insertion, so
 a late transcript cannot overwrite a draft that was edited or replaced.
 
+The controller deletes its recording when an operation ends. On mobile, the
+[recording outbox](../../apps/mobile/src/features/voice-input/voiceRecordingOutbox.ts)
+keeps it instead unless its transcript reached the draft or the user cancelled it,
+then transcribes it later and appends the text to that draft.
+
 Cancellation invalidates a result immediately, but resources stay owned until the
 underlying work settles. Apple's native transcription call cannot be interrupted
 once started. Releasing the session or deleting its recording when the abort signal

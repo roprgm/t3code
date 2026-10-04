@@ -143,10 +143,11 @@ and edit before sending.
 
 On-device transcription needs iOS 26 or later. Its first use may download Apple's
 speech model and needs a network connection; later transcription works offline for
-that language. Recordings can be up to five minutes long. Canceling, leaving the
-screen, or an audio interruption discards the recording and preserves your existing
-draft. While recording, the screen stays awake; it can sleep normally once recording
-stops.
+that language. Recordings can be up to five minutes long. Canceling discards the
+recording. If a recording cannot be transcribed, for example after leaving the screen,
+an interruption, or a lost connection, it waits in the composer and its text is added
+to the draft once transcription succeeds. While recording, the screen stays awake; it
+can sleep normally once recording stops.
 
 By default, transcription runs on your device. To use a cloud service instead, open
 **Settings → Voice input**, choose **Cloud service**, and enter an OpenAI-compatible
