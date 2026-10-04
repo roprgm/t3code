@@ -2765,7 +2765,16 @@ const layerWsRpc = (
         [WS_METHODS.pullRequestsDetail]: (input) =>
           observeRpcEffect(
             WS_METHODS.pullRequestsDetail,
-            withPullRequestViewer(input, pullRequests.detail(input)),
+            withPullRequestViewer(input, pullRequests.detail(input)).pipe(
+              // A fresh host state must not leave thread badges showing a stale one.
+              Effect.tap((detail) =>
+                resolvePullRequestSyncKey(input).pipe(
+                  Effect.flatMap((key) =>
+                    key === null ? Effect.void : pullRequestSync.observeState(key, detail.state),
+                  ),
+                ),
+              ),
+            ),
             {
               "rpc.aggregate": "pull-requests",
             },

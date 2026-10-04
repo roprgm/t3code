@@ -147,6 +147,14 @@ export class PullRequestSyncReactor extends Context.Service<
      * While its host is rate limited, the read waits for the first sweep after the pause.
      */
     readonly requestSync: (key: ThreadPullRequestKey) => Effect.Effect<void>;
+    /**
+     * Reports a state another reader just got from the host. A linked snapshot that disagrees is
+     * refreshed now instead of at its next scheduled sweep.
+     */
+    readonly observeState: (
+      key: ThreadPullRequestKey,
+      state: ThreadPullRequestSnapshot["state"],
+    ) => Effect.Effect<void>;
   }
 >()("t3/orchestration-v2/PullRequestSyncReactor") {}
 
@@ -159,6 +167,8 @@ export const make = Effect.gen(function* () {
 
   const lastSyncedAt = new Map<string, number>();
   const requested = new Map<string, number>();
+  /** Snapshot states the last sweep saw per pull request, so `observeState` needs no read. */
+  const linkedStates = new Map<string, ReadonlySet<ThreadPullRequestSnapshot["state"]>>();
   let requestGeneration = 0;
   // Requested keys wait in `requested` for one queued sweep, so a burst of links (an agent
   // linking dozens of pull requests) is read together and shares the summary batches.
@@ -205,6 +215,15 @@ export const make = Effect.gen(function* () {
     for (const key of lastSyncedAt.keys()) if (!groups.has(key)) lastSyncedAt.delete(key);
     for (const key of retryStacks) if (!groups.has(key)) retryStacks.delete(key);
     for (const key of requested.keys()) if (!groups.has(key)) requested.delete(key);
+    linkedStates.clear();
+    for (const [key, entries] of groups) {
+      linkedStates.set(
+        key,
+        new Set(
+          entries.flatMap((entry) => (entry.link.snapshot ? [entry.link.snapshot.state] : [])),
+        ),
+      );
+    }
 
     // Layers auto-linked this sweep, so two links of one thread that share a
     // stack do not both try to add the same sibling.
@@ -328,6 +347,7 @@ export const make = Effect.gen(function* () {
       lastSyncedAt.set(key, nowMs);
       // A refresh requested while the host read was in flight belongs to the next sweep.
       if (requested.get(key) === generation) requested.delete(key);
+      linkedStates.set(key, new Set([fields.state]));
       yield* Effect.forEach(
         entries,
         (entry) =>
@@ -469,7 +489,20 @@ export const make = Effect.gen(function* () {
       return worker.enqueue("requested");
     });
 
-  return { start, drain: worker.drain, requestSync } satisfies PullRequestSyncReactor["Service"];
+  const observeState: PullRequestSyncReactor["Service"]["observeState"] = (key, state) =>
+    Effect.suspend(() => {
+      const states = linkedStates.get(threadPullRequestKeyOf(key));
+      return states === undefined || (states.size === 1 && states.has(state))
+        ? Effect.void
+        : requestSync(key);
+    });
+
+  return {
+    start,
+    drain: worker.drain,
+    requestSync,
+    observeState,
+  } satisfies PullRequestSyncReactor["Service"];
 });
 
 export const layer = Layer.effect(PullRequestSyncReactor, make);

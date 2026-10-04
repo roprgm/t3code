@@ -620,6 +620,40 @@ describe("PullRequestSyncReactor", () => {
     ),
   );
 
+  it.effect("refreshes a linked snapshot when another reader sees a different state", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const state = yield* Ref.make<"closed" | "open">("closed");
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([
+            makeThread("closed", { pullRequests: [makeLink(3, { state: "closed" })] }),
+          ]),
+          summary: (input) =>
+            Ref.get(state).pipe(Effect.map((state) => makeSummary(input, { state }))),
+        });
+        yield* Effect.gen(function* () {
+          const reactor = yield* startAndSweep(fixture);
+          const key = { host: "github.com", repository: "owner/repository", number: 3 };
+
+          yield* reactor.observeState(key, "closed");
+          yield* reactor.drain;
+          assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
+
+          yield* Ref.set(state, "open");
+          yield* reactor.observeState(key, "open");
+          yield* Queue.take(fixture.snapshotReads);
+          yield* reactor.drain;
+          const commands = yield* Ref.get(fixture.syncCommands);
+          assert.deepStrictEqual(
+            commands.map((command) => command.snapshot.state),
+            ["open"],
+          );
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
   it.effect("stops asking the host once a pull request is merged", () =>
     Effect.scoped(
       Effect.gen(function* () {
