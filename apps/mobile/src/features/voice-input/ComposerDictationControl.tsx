@@ -2,6 +2,7 @@ import type { VoiceInputPhase, VoiceInputState } from "@t3tools/client-runtime/v
 import { memo, useCallback, useLayoutEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -281,6 +282,8 @@ export function ComposerDictationStatus(props: {
   readonly phase: VoiceInputPhase;
   readonly presentation: VoiceComposerPresentation;
   readonly onDismissError: () => void;
+  readonly onRetryPending?: () => void;
+  readonly onDiscardPending?: () => void;
 }) {
   const recordingVisibility = useSharedValue(props.phase === "recording" ? 1 : 0);
   useLayoutEffect(() => {
@@ -295,20 +298,52 @@ export function ComposerDictationStatus(props: {
 
   if (!props.presentation.statusLabel) return null;
   const isError = props.presentation.statusKind === "error";
+  const isPending = props.presentation.statusKind === "pending";
+  const { onDiscardPending } = props;
   const elapsedLabel = `${Math.floor(props.elapsedSeconds / 60)}:${String(props.elapsedSeconds % 60).padStart(2, "0")}`;
   return (
     <View className="relative h-11 min-w-0 flex-1 justify-center">
-      {isError ? (
+      {isError || isPending ? (
         <View className="min-w-0 flex-row items-center gap-1.5 px-2">
-          <Text className="min-w-0 flex-1 text-sm text-danger-foreground" numberOfLines={2}>
+          <Text
+            className={cn(
+              "min-w-0 flex-1 text-sm",
+              isPending ? "text-foreground-muted" : "text-danger-foreground",
+            )}
+            numberOfLines={2}
+          >
             {props.presentation.statusLabel}
           </Text>
+          {isPending && props.onRetryPending ? (
+            <Pressable
+              accessibilityLabel="Retry voice transcription"
+              accessibilityRole="button"
+              className="size-7 items-center justify-center active:opacity-70"
+              hitSlop={8}
+              onPress={props.onRetryPending}
+            >
+              <SymbolView
+                name="arrow.clockwise"
+                size={12}
+                tintColorClassName="accent-icon-muted"
+                type="monochrome"
+              />
+            </Pressable>
+          ) : null}
           <Pressable
-            accessibilityLabel="Dismiss voice input error"
+            accessibilityLabel={isPending ? "Discard voice note" : "Dismiss voice input error"}
             accessibilityRole="button"
             className="size-7 items-center justify-center active:opacity-70"
             hitSlop={8}
-            onPress={props.onDismissError}
+            onPress={
+              isPending && onDiscardPending
+                ? () =>
+                    Alert.alert("Discard voice note?", "It has not been transcribed yet.", [
+                      { text: "Keep", style: "cancel" },
+                      { text: "Discard", style: "destructive", onPress: onDiscardPending },
+                    ])
+                : props.onDismissError
+            }
           >
             <SymbolView
               name="xmark"
