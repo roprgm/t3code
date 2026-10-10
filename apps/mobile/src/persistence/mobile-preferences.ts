@@ -38,6 +38,8 @@ export interface Preferences {
   readonly followUpBehavior?: FollowUpBehavior;
   /** Locale for on-device voice input. Unset follows the app's locale. iOS only. */
   readonly voiceInputLanguage?: string;
+  /** Whether voice input uses the cloud service saved in Settings. Its key stays saved either way. */
+  readonly voiceInputCloud?: boolean;
   /** @deprecated Kept temporarily so older OTA bundles retain the selected mode. */
   readonly projectGroupingEnabled?: boolean;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
@@ -110,6 +112,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     composerEnterBehavior?: ComposerEnterBehavior;
     followUpBehavior?: FollowUpBehavior;
     voiceInputLanguage?: string;
+    voiceInputCloud?: boolean;
     projectGroupingEnabled?: boolean;
     projectGroupingMode?: SidebarProjectGroupingMode;
     planModeEnabled?: boolean;
@@ -177,6 +180,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (typeof parsed.voiceInputLanguage === "string") {
     preferences.voiceInputLanguage = parsed.voiceInputLanguage;
+  }
+  if (typeof parsed.voiceInputCloud === "boolean") {
+    preferences.voiceInputCloud = parsed.voiceInputCloud;
   }
   if (typeof parsed.projectGroupingEnabled === "boolean") {
     preferences.projectGroupingEnabled = parsed.projectGroupingEnabled;
